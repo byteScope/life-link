@@ -30,11 +30,11 @@ export default function App() {
         />
         <Route 
           path="/" 
-          element={isAuthenticated ? <Home /> : <Navigate to="/login" />} 
+          element={<Home />} 
         />
         <Route 
           path="/services" 
-          element={isAuthenticated ? <ServiceListing /> : <Navigate to="/login" />} 
+          element={<ServiceListing />} 
         />
         <Route 
           path="/service/:id" 
