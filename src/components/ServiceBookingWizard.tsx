@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { MapPin, Phone, User, Calendar as CalendarIcon, Clock, X, RotateCcw } from 'lucide-react';
+import { MapPin, Phone, User, Calendar as CalendarIcon, X, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ServiceBookingWizardProps {
@@ -27,7 +27,6 @@ export default function ServiceBookingWizard({
 }: ServiceBookingWizardProps) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
-  const [whenNeedCare, setWhenNeedCare] = useState('');
   const [careType, setCareType] = useState('');
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [selectedDateTimes, setSelectedDateTimes] = useState<Record<string, string>>({});
@@ -37,8 +36,7 @@ export default function ServiceBookingWizard({
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringPattern, setRecurringPattern] = useState('');
   const [recurringWeeks, setRecurringWeeks] = useState(4);
-  const [zipCode, setZipCode] = useState('');
-  const [city, setCity] = useState('');
+  const [location, setLocation] = useState('');
   const [phone, setPhone] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -47,7 +45,6 @@ export default function ServiceBookingWizard({
   useEffect(() => {
     if (!isOpen) {
       setCurrentStep(1);
-      setWhenNeedCare('');
       setCareType('');
       setSelectedDates([]);
       setSelectedDateTimes({});
@@ -57,8 +54,7 @@ export default function ServiceBookingWizard({
       setIsRecurring(false);
       setRecurringPattern('');
       setRecurringWeeks(4);
-      setZipCode('');
-      setCity('');
+      setLocation('');
       setPhone('');
       setFirstName('');
       setLastName('');
@@ -67,11 +63,41 @@ export default function ServiceBookingWizard({
 
   if (!isOpen) return null;
 
-  const whenOptions = [
-    { value: 'right-now', label: 'Right now' },
-    { value: 'within-week', label: 'Within a week' },
-    { value: '1-2-months', label: 'In 1-2 months' },
-    { value: 'browsing', label: 'Just browsing' },
+  // Quick date options that auto-fill dates
+  const quickDateOptions = [
+    { 
+      value: 'today', 
+      label: 'Today', 
+      getDates: () => [new Date()] 
+    },
+    { 
+      value: 'this-week', 
+      label: 'This week', 
+      getDates: () => {
+        const today = new Date();
+        const dates: Date[] = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          dates.push(date);
+        }
+        return dates;
+      }
+    },
+    { 
+      value: 'next-week', 
+      label: 'Next week', 
+      getDates: () => {
+        const today = new Date();
+        const dates: Date[] = [];
+        for (let i = 7; i < 14; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          dates.push(date);
+        }
+        return dates;
+      }
+    },
   ];
 
   const getCareTypeOptions = () => {
@@ -122,32 +148,9 @@ export default function ServiceBookingWizard({
   ];
 
   const getTotalSteps = () => {
-    // Step 1: When, Step 2: Care Type, Step 3: Dates, Step 4: Time, Step 5: Duration, Step 6: Location
-    // Step 7-8: Auth (if not authenticated), Step 9: Review
-    return isAuthenticated ? 6 : 8;
-  };
-
-  // Handle date selection (multi-select)
-  const handleDateSelect = (date: Date | undefined) => {
-    if (!date) return;
-    
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const isSelected = selectedDates.some(d => format(d, 'yyyy-MM-dd') === dateStr);
-    
-    if (isSelected) {
-      // Remove date
-      setSelectedDates(selectedDates.filter(d => format(d, 'yyyy-MM-dd') !== dateStr));
-      const newTimes = { ...selectedDateTimes };
-      delete newTimes[dateStr];
-      setSelectedDateTimes(newTimes);
-    } else {
-      // Add date
-      setSelectedDates([...selectedDates, date].sort((a, b) => a.getTime() - b.getTime()));
-      // If using same time, auto-assign the selected time
-      if (useSameTime && selectedTime) {
-        setSelectedDateTimes({ ...selectedDateTimes, [dateStr]: selectedTime });
-      }
-    }
+    // Step 1: Dates, Step 2: Care Type, Step 3: Time, Step 4: Duration, Step 5: Location
+    // Step 6-7: Auth (if not authenticated), Step 8: Review
+    return isAuthenticated ? 5 : 7;
   };
 
   // Generate recurring dates
@@ -166,10 +169,9 @@ export default function ServiceBookingWizard({
 
   const handleNext = () => {
     // Validation for each step
-    if (currentStep === 1 && !whenNeedCare) return;
+    if (currentStep === 1 && selectedDates.length === 0) return;
     if (currentStep === 2 && !careType) return;
-    if (currentStep === 3 && selectedDates.length === 0) return;
-    if (currentStep === 4) {
+    if (currentStep === 3) {
       if (useSameTime && !selectedTime) return;
       if (!useSameTime) {
         const allDatesHaveTime = selectedDates.every(date => {
@@ -179,11 +181,11 @@ export default function ServiceBookingWizard({
         if (!allDatesHaveTime) return;
       }
     }
-    if (currentStep === 5 && !sessionDuration) return;
-    if (currentStep === 6 && !zipCode) return;
+    if (currentStep === 4 && !sessionDuration) return;
+    if (currentStep === 5 && !location.trim()) return;
     if (!isAuthenticated) {
-      if (currentStep === 7 && !phone) return;
-      if (currentStep === 8 && (!firstName || !lastName)) return;
+      if (currentStep === 6 && !phone) return;
+      if (currentStep === 7 && (!firstName || !lastName)) return;
     }
 
     const totalSteps = getTotalSteps();
@@ -199,7 +201,7 @@ export default function ServiceBookingWizard({
       const timesParam = useSameTime 
         ? selectedTime 
         : selectedDates.map(d => selectedDateTimes[format(d, 'yyyy-MM-dd')]).join(',');
-      navigate(`/services?category=${serviceCategory}&when=${whenNeedCare}&type=${careType}&zip=${zipCode}&dates=${datesParam}&times=${timesParam}&duration=${sessionDuration}`);
+      navigate(`/services?category=${serviceCategory}&type=${careType}&location=${encodeURIComponent(location)}&dates=${datesParam}&times=${timesParam}&duration=${sessionDuration}`);
       onClose();
     }
   };
@@ -211,12 +213,26 @@ export default function ServiceBookingWizard({
   };
 
   const handleOptionSelect = (value: string) => {
-    if (currentStep === 1) {
-      setWhenNeedCare(value);
-    } else if (currentStep === 2) {
+    if (currentStep === 2) {
       setCareType(value);
-    } else if (currentStep === 5) {
+    } else if (currentStep === 4) {
       setSessionDuration(value);
+    }
+  };
+
+  const handleQuickDateSelect = (optionValue: string) => {
+    const option = quickDateOptions.find(opt => opt.value === optionValue);
+    if (option) {
+      const dates = option.getDates();
+      setSelectedDates(dates);
+      // Auto-assign times if already selected
+      if (useSameTime && selectedTime) {
+        const times: Record<string, string> = {};
+        dates.forEach(date => {
+          times[format(date, 'yyyy-MM-dd')] = selectedTime;
+        });
+        setSelectedDateTimes(times);
+      }
     }
   };
 
@@ -252,56 +268,34 @@ export default function ServiceBookingWizard({
           </div>
         </div>
 
-        {/* Step 1: When do you need care? */}
+        {/* Step 1: Date Selection */}
         {currentStep === 1 && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">When do you need care?</h2>
-            <div className="space-y-3">
-              {whenOptions.map((option) => (
-                <Card
-                  key={option.value}
-                  onClick={() => handleOptionSelect(option.value)}
-                  className={`p-4 cursor-pointer transition-all border-2 rounded-xl ${
-                    whenNeedCare === option.value
-                      ? 'border-gray-900 bg-gray-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="font-semibold text-gray-900">{option.label}</div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: What kind of care? */}
-        {currentStep === 2 && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">What kind of care?</h2>
-            <div className="space-y-3">
-              {getCareTypeOptions().map((option) => (
-                <Card
-                  key={option.value}
-                  onClick={() => handleOptionSelect(option.value)}
-                  className={`p-4 cursor-pointer transition-all border-2 rounded-xl ${
-                    careType === option.value
-                      ? 'border-gray-900 bg-gray-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="font-semibold text-gray-900 mb-1">{option.label}</div>
-                  <div className="text-sm text-gray-600">{option.description}</div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Date Selection */}
-        {currentStep === 3 && (
-          <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Select your preferred dates</h2>
-            <p className="text-gray-600 mb-4 text-sm">You can select multiple dates for your sessions</p>
+            <p className="text-gray-600 mb-4 text-sm">Choose when you'd like to schedule your sessions</p>
+            
+            {/* Quick Date Options */}
+            <div className="mb-4">
+              <Label className="text-gray-700 font-medium mb-2 block">Quick select</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {quickDateOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant="outline"
+                    onClick={() => handleQuickDateSelect(option.value)}
+                    className={`h-12 rounded-xl ${
+                      selectedDates.length > 0 && 
+                      JSON.stringify(selectedDates.map(d => format(d, 'yyyy-MM-dd')).sort()) === 
+                      JSON.stringify(option.getDates().map(d => format(d, 'yyyy-MM-dd')).sort())
+                        ? 'bg-[#1BC47D] text-white border-[#1BC47D]'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
             
             {/* Recurring Option (only for physiotherapy) */}
             {serviceCategory === 'physiotherapy' && (
@@ -365,56 +359,23 @@ export default function ServiceBookingWizard({
               </div>
             )}
 
-            {/* Date Input */}
+            {/* Date Input - Or select specific dates */}
             <div className="mb-4 space-y-3">
               <div>
-                <Label className="text-gray-700 font-medium mb-2 block">Add a date</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    min={format(new Date(), 'yyyy-MM-dd')}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const newDate = new Date(e.target.value);
-                        const dateStr = format(newDate, 'yyyy-MM-dd');
-                        const isSelected = selectedDates.some(d => format(d, 'yyyy-MM-dd') === dateStr);
-                        
-                        if (!isSelected) {
-                          if (isRecurring && recurringPattern) {
-                            // Generate recurring dates
-                            const generatedDates = generateRecurringDates(newDate, recurringPattern, recurringWeeks);
-                            setSelectedDates([...selectedDates, ...generatedDates].sort((a, b) => a.getTime() - b.getTime()));
-                            if (useSameTime && selectedTime) {
-                              const times: Record<string, string> = {};
-                              generatedDates.forEach(date => {
-                                times[format(date, 'yyyy-MM-dd')] = selectedTime;
-                              });
-                              setSelectedDateTimes({ ...selectedDateTimes, ...times });
-                            }
-                          } else {
-                            // Add single date
-                            setSelectedDates([...selectedDates, newDate].sort((a, b) => a.getTime() - b.getTime()));
-                            if (useSameTime && selectedTime) {
-                              setSelectedDateTimes({ ...selectedDateTimes, [dateStr]: selectedTime });
-                            }
-                          }
-                          e.target.value = ''; // Clear input after selection
-                        }
-                      }
-                    }}
-                    className="h-12 rounded-xl"
-                    placeholder="Select date"
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      const today = new Date();
-                      const dateStr = format(today, 'yyyy-MM-dd');
+                <Label className="text-gray-700 font-medium mb-2 block">Or select specific dates</Label>
+                <Input
+                  type="date"
+                  min={format(new Date(), 'yyyy-MM-dd')}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const newDate = new Date(e.target.value);
+                      const dateStr = format(newDate, 'yyyy-MM-dd');
                       const isSelected = selectedDates.some(d => format(d, 'yyyy-MM-dd') === dateStr);
                       
                       if (!isSelected) {
                         if (isRecurring && recurringPattern) {
-                          const generatedDates = generateRecurringDates(today, recurringPattern, recurringWeeks);
+                          // Generate recurring dates
+                          const generatedDates = generateRecurringDates(newDate, recurringPattern, recurringWeeks);
                           setSelectedDates([...selectedDates, ...generatedDates].sort((a, b) => a.getTime() - b.getTime()));
                           if (useSameTime && selectedTime) {
                             const times: Record<string, string> = {};
@@ -424,20 +385,19 @@ export default function ServiceBookingWizard({
                             setSelectedDateTimes({ ...selectedDateTimes, ...times });
                           }
                         } else {
-                          setSelectedDates([...selectedDates, today].sort((a, b) => a.getTime() - b.getTime()));
+                          // Add single date
+                          setSelectedDates([...selectedDates, newDate].sort((a, b) => a.getTime() - b.getTime()));
                           if (useSameTime && selectedTime) {
                             setSelectedDateTimes({ ...selectedDateTimes, [dateStr]: selectedTime });
                           }
                         }
+                        e.target.value = ''; // Clear input after selection
                       }
-                    }}
-                    variant="outline"
-                    className="h-12 rounded-xl"
-                  >
-                    Today
-                  </Button>
-                </div>
-                <p className="text-sm text-gray-500 mt-2">Click "Today" or select a date to add it</p>
+                    }
+                  }}
+                  className="h-12 rounded-xl"
+                  placeholder="Select date"
+                />
               </div>
             </div>
 
@@ -473,8 +433,31 @@ export default function ServiceBookingWizard({
           </div>
         )}
 
-        {/* Step 4: Time Selection */}
-        {currentStep === 4 && (
+        {/* Step 2: What kind of care? */}
+        {currentStep === 2 && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">What kind of care?</h2>
+            <div className="space-y-3">
+              {getCareTypeOptions().map((option) => (
+                <Card
+                  key={option.value}
+                  onClick={() => handleOptionSelect(option.value)}
+                  className={`p-4 cursor-pointer transition-all border-2 rounded-xl ${
+                    careType === option.value
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-semibold text-gray-900 mb-1">{option.label}</div>
+                  <div className="text-sm text-gray-600">{option.description}</div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Time Selection */}
+        {currentStep === 3 && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Select time slots</h2>
             <p className="text-gray-600 mb-4 text-sm">Choose preferred times for your sessions</p>
@@ -565,8 +548,8 @@ export default function ServiceBookingWizard({
           </div>
         )}
 
-        {/* Step 5: Session Duration */}
-        {currentStep === 5 && (
+        {/* Step 4: Session Duration */}
+        {currentStep === 4 && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Session duration</h2>
             <p className="text-gray-600 mb-6 text-sm">How long should each session be?</p>
@@ -593,40 +576,31 @@ export default function ServiceBookingWizard({
           </div>
         )}
 
-        {/* Step 6: Where do you need care? */}
-        {currentStep === 6 && (
+        {/* Step 5: Where do you need care? */}
+        {currentStep === 5 && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Where do you need care?</h2>
             <div className="space-y-4">
               <div>
-                <Label className="text-gray-600 mb-2 block">ZIP code</Label>
+                <Label className="text-gray-600 mb-2 block">Location</Label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <Input
                     type="text"
-                    placeholder="Enter ZIP code"
-                    value={zipCode}
-                    onChange={(e) => {
-                      setZipCode(e.target.value);
-                      // Simulate city detection
-                      if (e.target.value.length === 5) {
-                        setCity('Detected City, State');
-                      }
-                    }}
+                    placeholder="Enter your address or location"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
                     className="pl-10 h-12 rounded-xl"
-                    maxLength={5}
                   />
                 </div>
-                {city && (
-                  <p className="text-sm text-gray-500 mt-2">{city}</p>
-                )}
+                <p className="text-sm text-gray-500 mt-2">We'll find providers near you</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Step 7: Mobile Number (if not authenticated) */}
-        {currentStep === 7 && !isAuthenticated && (
+        {/* Step 6: Mobile Number (if not authenticated) */}
+        {currentStep === 6 && !isAuthenticated && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Enter your mobile number</h2>
             <div className="space-y-4">
@@ -648,8 +622,8 @@ export default function ServiceBookingWizard({
           </div>
         )}
 
-        {/* Step 8: First Name & Last Name (if not authenticated) */}
-        {currentStep === 8 && !isAuthenticated && (
+        {/* Step 7: First Name & Last Name (if not authenticated) */}
+        {currentStep === 7 && !isAuthenticated && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Tell us about yourself</h2>
             <div className="space-y-4">
@@ -683,8 +657,8 @@ export default function ServiceBookingWizard({
           </div>
         )}
 
-        {/* Step 7/9: Review/Ready (if authenticated, show at step 7; if not, step 9) */}
-        {((isAuthenticated && currentStep === 7) || (!isAuthenticated && currentStep === 9)) && (
+        {/* Step 6/8: Review/Ready (if authenticated, show at step 6; if not, step 8) */}
+        {((isAuthenticated && currentStep === 6) || (!isAuthenticated && currentStep === 8)) && (
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Review your booking</h2>
             <div className="space-y-4 bg-gray-50 rounded-xl p-4">
@@ -746,14 +720,13 @@ export default function ServiceBookingWizard({
             className="flex-1 rounded-xl"
             style={{ backgroundColor: '#1BC47D' }}
             disabled={
-              (currentStep === 1 && !whenNeedCare) ||
+              (currentStep === 1 && selectedDates.length === 0) ||
               (currentStep === 2 && !careType) ||
-              (currentStep === 3 && selectedDates.length === 0) ||
-              (currentStep === 4 && ((useSameTime && !selectedTime) || (!useSameTime && !selectedDates.every(date => selectedDateTimes[format(date, 'yyyy-MM-dd')])))) ||
-              (currentStep === 5 && !sessionDuration) ||
-              (currentStep === 6 && !zipCode) ||
-              (currentStep === 7 && !isAuthenticated && !phone) ||
-              (currentStep === 8 && !isAuthenticated && (!firstName || !lastName))
+              (currentStep === 3 && ((useSameTime && !selectedTime) || (!useSameTime && !selectedDates.every(date => selectedDateTimes[format(date, 'yyyy-MM-dd')])))) ||
+              (currentStep === 4 && !sessionDuration) ||
+              (currentStep === 5 && !location.trim()) ||
+              (currentStep === 6 && !isAuthenticated && !phone) ||
+              (currentStep === 7 && !isAuthenticated && (!firstName || !lastName))
             }
           >
             {currentStep === getTotalSteps() ? 'Find Care' : 'Next'}
