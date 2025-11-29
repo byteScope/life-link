@@ -9,8 +9,6 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { path: '/', label: 'Home' },
-    { path: '/services', label: 'Services' },
     { path: '/emergency', label: 'Emergency' },
     { path: '/blood-request', label: 'Blood Request' },
     { path: '/chat', label: 'Chat' },
@@ -30,6 +28,37 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-1">
+            {/* Find Care - Direct Link */}
+            <Link to="/services">
+              <Button
+                variant={location.pathname === '/services' ? 'default' : 'ghost'}
+                className="rounded-xl"
+                style={
+                  location.pathname === '/services'
+                    ? { backgroundColor: '#1F6FB2' }
+                    : {}
+                }
+              >
+                Find Care
+              </Button>
+            </Link>
+
+            {/* Find Jobs - Direct Link */}
+            <Link to="/jobs">
+              <Button
+                variant={location.pathname === '/jobs' ? 'default' : 'ghost'}
+                className="rounded-xl"
+                style={
+                  location.pathname === '/jobs'
+                    ? { backgroundColor: '#1F6FB2' }
+                    : {}
+                }
+              >
+                Find Jobs
+              </Button>
+            </Link>
+
+            {/* Other Navigation Items */}
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
@@ -80,6 +109,37 @@ export default function Header() {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-gray-200">
             <nav className="flex flex-col gap-2">
+              {/* Find Care Link */}
+              <Link to="/services" onClick={() => setMobileMenuOpen(false)}>
+                <Button
+                  variant={location.pathname === '/services' ? 'default' : 'ghost'}
+                  className="w-full justify-start rounded-xl"
+                  style={
+                    location.pathname === '/services'
+                      ? { backgroundColor: '#1F6FB2' }
+                      : {}
+                  }
+                >
+                  Find Care
+                </Button>
+              </Link>
+
+              {/* Find Jobs Link */}
+              <Link to="/jobs" onClick={() => setMobileMenuOpen(false)}>
+                <Button
+                  variant={location.pathname === '/jobs' ? 'default' : 'ghost'}
+                  className="w-full justify-start rounded-xl"
+                  style={
+                    location.pathname === '/jobs'
+                      ? { backgroundColor: '#1F6FB2' }
+                      : {}
+                  }
+                >
+                  Find Jobs
+                </Button>
+              </Link>
+
+              {/* Other Navigation Items */}
               {navItems.map((item) => (
                 <Link key={item.path} to={item.path} onClick={() => setMobileMenuOpen(false)}>
                   <Button

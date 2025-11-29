@@ -5,8 +5,9 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { MapPin, Phone, User, Calendar as CalendarIcon, X, RotateCcw } from 'lucide-react';
-import { format } from 'date-fns';
+import { Phone, User, Calendar as CalendarIcon, X, RotateCcw } from 'lucide-react';
+import { format, parse } from 'date-fns';
+import LocationAutocomplete, { LocationData } from './LocationAutocomplete';
 
 interface ServiceBookingWizardProps {
   serviceTitle: string;
@@ -15,6 +16,14 @@ interface ServiceBookingWizardProps {
   onClose: () => void;
   isAuthenticated: boolean;
   onAuthenticate: (phone: string, firstName: string, lastName: string) => void;
+  initialValues?: {
+    careType?: string;
+    dates?: string[];
+    times?: string[];
+    duration?: string;
+    location?: string;
+  };
+  initialStep?: number;
 }
 
 export default function ServiceBookingWizard({
@@ -24,9 +33,11 @@ export default function ServiceBookingWizard({
   onClose,
   isAuthenticated,
   onAuthenticate,
+  initialValues,
+  initialStep = 1,
 }: ServiceBookingWizardProps) {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialStep);
   const [careType, setCareType] = useState('');
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [selectedDateTimes, setSelectedDateTimes] = useState<Record<string, string>>({});
@@ -37,11 +48,12 @@ export default function ServiceBookingWizard({
   const [recurringPattern, setRecurringPattern] = useState('');
   const [recurringWeeks, setRecurringWeeks] = useState(4);
   const [location, setLocation] = useState('');
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [phone, setPhone] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
 
-  // Reset state when wizard opens/closes
+  // Reset state when wizard opens/closes, or populate with initial values
   useEffect(() => {
     if (!isOpen) {
       setCurrentStep(1);
@@ -55,11 +67,65 @@ export default function ServiceBookingWizard({
       setRecurringPattern('');
       setRecurringWeeks(4);
       setLocation('');
+      setLocationData(null);
       setPhone('');
       setFirstName('');
       setLastName('');
+    } else {
+      // Set initial step when wizard opens
+      setCurrentStep(initialStep);
+      
+      // Populate with initial values if provided
+      if (initialValues) {
+        if (initialValues.careType) {
+          setCareType(initialValues.careType);
+        }
+        if (initialValues.dates && initialValues.dates.length > 0) {
+          const dates = initialValues.dates
+            .map(dateStr => {
+              try {
+                return parse(dateStr, 'yyyy-MM-dd', new Date());
+              } catch {
+                return null;
+              }
+            })
+            .filter((d): d is Date => d !== null);
+          setSelectedDates(dates);
+        }
+        if (initialValues.times && initialValues.times.length > 0) {
+          if (initialValues.times.length === 1) {
+            setUseSameTime(true);
+            setSelectedTime(initialValues.times[0]);
+          } else {
+            setUseSameTime(false);
+            const times: Record<string, string> = {};
+            initialValues.dates?.forEach((dateStr, idx) => {
+              if (initialValues.times && initialValues.times[idx]) {
+                times[dateStr] = initialValues.times[idx];
+              }
+            });
+            setSelectedDateTimes(times);
+          }
+        }
+        if (initialValues.duration) {
+          setSessionDuration(initialValues.duration);
+        }
+        if (initialValues.location) {
+          setLocation(initialValues.location);
+          // Try to parse coordinates if stored
+          const coordsMatch = initialValues.location.match(/(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
+          if (coordsMatch) {
+            setLocationData({
+              displayName: initialValues.location,
+              shortName: initialValues.location,
+              lat: parseFloat(coordsMatch[1]),
+              lon: parseFloat(coordsMatch[2]),
+            });
+          }
+        }
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialValues, initialStep]);
 
   if (!isOpen) return null;
 
@@ -201,7 +267,14 @@ export default function ServiceBookingWizard({
       const timesParam = useSameTime 
         ? selectedTime 
         : selectedDates.map(d => selectedDateTimes[format(d, 'yyyy-MM-dd')]).join(',');
-      navigate(`/services?category=${serviceCategory}&type=${careType}&location=${encodeURIComponent(location)}&dates=${datesParam}&times=${timesParam}&duration=${sessionDuration}`);
+      
+      // Include coordinates if available for nearby provider search
+      let locationParam = encodeURIComponent(location);
+      if (locationData) {
+        locationParam += `&lat=${locationData.lat}&lon=${locationData.lon}`;
+      }
+      
+      navigate(`/services?category=${serviceCategory}&type=${careType}&location=${locationParam}&dates=${datesParam}&times=${timesParam}&duration=${sessionDuration}`);
       onClose();
     }
   };
@@ -583,17 +656,19 @@ export default function ServiceBookingWizard({
             <div className="space-y-4">
               <div>
                 <Label className="text-gray-600 mb-2 block">Location</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <Input
-                    type="text"
-                    placeholder="Enter your address or location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="pl-10 h-12 rounded-xl"
-                  />
-                </div>
-                <p className="text-sm text-gray-500 mt-2">We'll find providers near you</p>
+                <LocationAutocomplete
+                  value={location}
+                  onChange={setLocation}
+                  onLocationSelect={setLocationData}
+                  placeholder="Enter area, city or location"
+                  className="h-12 rounded-xl"
+                  showCurrentLocation={true}
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  {locationData 
+                    ? `📍 ${locationData.shortName} - We'll find providers nearby`
+                    : "We'll find providers near you"}
+                </p>
               </div>
             </div>
           </div>

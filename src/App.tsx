@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Home from './components/Home';
 import ServiceListing from './components/ServiceListing';
 import ServiceDetail from './components/ServiceDetail';
+import JobsListing from './components/JobsListing';
 import Emergency from './components/Emergency';
 import BloodRequest from './components/BloodRequest';
 import Chat from './components/Chat';
@@ -39,6 +40,10 @@ export default function App() {
         <Route 
           path="/service/:id" 
           element={isAuthenticated ? <ServiceDetail /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/jobs" 
+          element={<JobsListing />} 
         />
         <Route 
           path="/emergency" 

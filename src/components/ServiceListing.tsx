@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import ServiceBookingWizard from './ServiceBookingWizard';
 import {
   Select,
   SelectContent,
@@ -32,16 +33,42 @@ import {
   Heart,
   CheckCircle,
   Shield,
+  Edit2,
+  Calendar as CalendarIcon,
+  X,
 } from 'lucide-react';
+import { format, parse } from 'date-fns';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
 export default function ServiceListing() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(() => {
     return searchParams.get('category') || 'all';
   });
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardInitialStep, setWizardInitialStep] = useState(1);
+
+  // Get booking details from URL params
+  const bookingCategory = searchParams.get('category');
+  const bookingType = searchParams.get('type');
+  const bookingLocation = searchParams.get('location');
+  const bookingDates = searchParams.get('dates')?.split(',').filter(Boolean) || [];
+  const bookingTimes = searchParams.get('times')?.split(',').filter(Boolean) || [];
+  const bookingDuration = searchParams.get('duration');
+  const hasBookingDetails = bookingCategory && bookingDates.length > 0;
+
+  // Check if user is authenticated
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('isAuthenticated') === 'true';
+  });
+
+  const handleAuthenticate = (phone: string, firstName: string, lastName: string) => {
+    setIsAuthenticated(true);
+    localStorage.setItem('isAuthenticated', 'true');
+  };
 
   useEffect(() => {
     const category = searchParams.get('category');
@@ -49,6 +76,79 @@ export default function ServiceListing() {
       setSelectedCategory(category);
     }
   }, [searchParams]);
+
+  // Get care type label
+  const getCareTypeLabel = (type: string, category: string) => {
+    const options: Record<string, Record<string, string>> = {
+      physiotherapy: {
+        'home-visit': 'Home visit',
+        'clinic': 'Clinic visit',
+        'online': 'Online consultation',
+      },
+      caregiver: {
+        'elderly-care': 'Elderly care',
+        'disabled-care': 'Disabled adult care',
+        'hospital-attendant': 'Hospital attendant',
+      },
+      babysitter: {
+        'recurring': 'Recurring babysitter',
+        'one-time': 'One-time sitter',
+        'full-time': 'Full-time nanny',
+      },
+    };
+    return options[category]?.[type] || type;
+  };
+
+  // Get duration label
+  const getDurationLabel = (duration: string) => {
+    const options: Record<string, string> = {
+      '30': '30 minutes',
+      '60': '60 minutes',
+      '90': '90 minutes',
+    };
+    return options[duration] || duration;
+  };
+
+  // Update URL params
+  const updateBookingParam = (key: string, value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set(key, value);
+    } else {
+      newParams.delete(key);
+    }
+    setSearchParams(newParams);
+  };
+
+  // Map fields to wizard steps
+  const getStepForField = (field: 'dates' | 'times' | 'duration' | 'location' | 'type'): number => {
+    // Step 1: Dates, Step 2: Care Type, Step 3: Time, Step 4: Duration, Step 5: Location
+    const stepMap: Record<string, number> = {
+      'dates': 1,
+      'type': 2,
+      'times': 3,
+      'duration': 4,
+      'location': 5,
+    };
+    return stepMap[field] || 1;
+  };
+
+  // Handle edit booking - opens wizard at step 1
+  const handleEditBooking = () => {
+    if (bookingCategory) {
+      setWizardInitialStep(1);
+      setWizardOpen(true);
+    }
+  };
+
+  // Handle edit specific field - opens wizard at appropriate step
+  const handleEditField = (field: 'dates' | 'times' | 'duration' | 'location' | 'type') => {
+    if (bookingCategory) {
+      const step = getStepForField(field);
+      setWizardInitialStep(step);
+      setWizardOpen(true);
+    }
+  };
 
   const categories = [
     { value: 'all', label: 'All Services', icon: Heart },
@@ -337,6 +437,157 @@ export default function ServiceListing() {
           <p className="text-gray-600 text-lg">Connect with verified caregivers, healthcare professionals, and service providers in your area</p>
         </div>
 
+        {/* Booking Summary - Editable */}
+        {hasBookingDetails && (
+          <Card className="mb-8 p-6 rounded-2xl border-2 border-[#1BC47D]/20" style={{ backgroundColor: '#F0FDF4' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-[#1BC47D]" />
+                Your Booking Details
+              </h2>
+              <Button
+                onClick={handleEditBooking}
+                variant="outline"
+                className="rounded-xl border-[#1BC47D] text-[#1BC47D] hover:bg-[#1BC47D] hover:text-white"
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                Edit All
+              </Button>
+            </div>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Service Category */}
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#1BC47D]/10 flex items-center justify-center flex-shrink-0">
+                  <Activity className="w-5 h-5 text-[#1BC47D]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500 mb-1">Service</p>
+                  <p className="font-semibold text-gray-900 capitalize">{bookingCategory}</p>
+                </div>
+              </div>
+
+              {/* Care Type */}
+              {bookingType && (
+                <div 
+                  className="flex items-start gap-3 cursor-pointer hover:bg-[#1BC47D]/5 p-2 rounded-lg transition-colors -m-2"
+                  onClick={() => handleEditField('type')}
+                  title="Click to edit care type"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#1BC47D]/10 flex items-center justify-center flex-shrink-0">
+                    <HomeIcon className="w-5 h-5 text-[#1BC47D]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-gray-500">Care Type</p>
+                      <Edit2 className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <p className="font-semibold text-gray-900">{getCareTypeLabel(bookingType, bookingCategory || '')}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Dates */}
+              <div 
+                className="flex items-start gap-3 cursor-pointer hover:bg-[#1BC47D]/5 p-2 rounded-lg transition-colors -m-2"
+                onClick={() => handleEditField('dates')}
+                title="Click to edit dates"
+              >
+                <div className="w-10 h-10 rounded-lg bg-[#1BC47D]/10 flex items-center justify-center flex-shrink-0">
+                  <CalendarIcon className="w-5 h-5 text-[#1BC47D]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs text-gray-500">Dates ({bookingDates.length})</p>
+                    <Edit2 className="w-3 h-3 text-gray-400" />
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {bookingDates.slice(0, 2).map((dateStr, idx) => {
+                      try {
+                        const date = parse(dateStr, 'yyyy-MM-dd', new Date());
+                        return (
+                          <Badge key={idx} className="bg-[#1BC47D] text-white text-xs">
+                            {format(date, 'MMM d')}
+                          </Badge>
+                        );
+                      } catch {
+                        return null;
+                      }
+                    })}
+                    {bookingDates.length > 2 && (
+                      <Badge className="bg-gray-200 text-gray-700 text-xs">
+                        +{bookingDates.length - 2} more
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Times */}
+              {bookingTimes.length > 0 && (
+                <div 
+                  className="flex items-start gap-3 cursor-pointer hover:bg-[#1BC47D]/5 p-2 rounded-lg transition-colors -m-2"
+                  onClick={() => handleEditField('times')}
+                  title="Click to edit times"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#1BC47D]/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-5 h-5 text-[#1BC47D]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-gray-500">Time</p>
+                      <Edit2 className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <p className="font-semibold text-gray-900">
+                      {bookingTimes.length === 1 ? bookingTimes[0] : `${bookingTimes.length} different times`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Duration */}
+              {bookingDuration && (
+                <div 
+                  className="flex items-start gap-3 cursor-pointer hover:bg-[#1BC47D]/5 p-2 rounded-lg transition-colors -m-2"
+                  onClick={() => handleEditField('duration')}
+                  title="Click to edit duration"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#1BC47D]/10 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-5 h-5 text-[#1BC47D]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-gray-500">Duration</p>
+                      <Edit2 className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <p className="font-semibold text-gray-900">{getDurationLabel(bookingDuration)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Location */}
+              {bookingLocation && (
+                <div 
+                  className="flex items-start gap-3 cursor-pointer hover:bg-[#1BC47D]/5 p-2 rounded-lg transition-colors -m-2"
+                  onClick={() => handleEditField('location')}
+                  title="Click to edit location"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#1BC47D]/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-[#1BC47D]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-gray-500">Location</p>
+                      <Edit2 className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <p className="font-semibold text-gray-900 truncate">{bookingLocation}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
         {/* Filters Section */}
         <div className="rounded-2xl p-6 shadow-sm mb-8" style={{ backgroundColor: '#FFFFFF' }}>
           <div className="grid md:grid-cols-4 gap-4">
@@ -529,6 +780,26 @@ export default function ServiceListing() {
       </main>
 
       <Footer />
+
+      {/* Service Booking Wizard for editing */}
+      {wizardOpen && bookingCategory && (
+        <ServiceBookingWizard
+          serviceTitle={categories.find(c => c.value === bookingCategory)?.label || 'Service'}
+          serviceCategory={bookingCategory}
+          isOpen={wizardOpen}
+          onClose={() => setWizardOpen(false)}
+          isAuthenticated={isAuthenticated}
+          onAuthenticate={handleAuthenticate}
+          initialValues={{
+            careType: bookingType || undefined,
+            dates: bookingDates.length > 0 ? bookingDates : undefined,
+            times: bookingTimes.length > 0 ? bookingTimes : undefined,
+            duration: bookingDuration || undefined,
+            location: bookingLocation || undefined,
+          }}
+          initialStep={wizardInitialStep}
+        />
+      )}
     </div>
   );
 }
