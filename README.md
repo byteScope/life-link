@@ -2,6 +2,12 @@
 
 A comprehensive, modern web application for emergency and healthcare services. This platform includes user-facing features and a complete admin panel for managing all aspects of the healthcare service platform.
 
+## 📚 Documentation
+
+- **[Business Documentation](./docs/BUSINESS.md)** - Comprehensive business model, mission, vision, market analysis, go-to-market strategy, and success metrics
+- **[Product Documentation Framework](./docs/PRODUCT_DOCUMENTATION_FRAMEWORK.md)** - Reusable template for documenting future products and tech solutions
+- **[Setup Guide](./SETUP.md)** - Technical setup and configuration guide
+
 ## 🚀 Quick Start
 
 ### Prerequisites

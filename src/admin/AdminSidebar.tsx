@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -8,11 +8,21 @@ import {
   Droplet,
   CreditCard,
   Heart,
+  LogOut,
 } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from '../components/ui/button';
+import { clearAuthStorage } from '../api/auth';
 
 export default function AdminSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    clearAuthStorage();
+    localStorage.removeItem('lifelink_admin');
+    window.dispatchEvent(new Event('lifelink_logout'));
+    navigate('/admin/login');
+  };
 
   const menuItems = [
     { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,7 +35,7 @@ export default function AdminSidebar() {
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 min-h-screen p-6">
+    <div className="w-64 bg-white border-r border-gray-200 min-h-screen p-6 flex flex-col">
       {/* Logo */}
       <Link to="/admin" className="flex items-center gap-2 mb-8">
         <div className="w-10 h-10 bg-gradient-to-br from-[#1F6FB2] to-[#1BC47D] rounded-xl flex items-center justify-center">
@@ -56,6 +66,14 @@ export default function AdminSidebar() {
           </Link>
         ))}
       </nav>
+
+      <div className="mt-auto pt-6 border-t border-gray-200">
+        <Link to="/">View site</Link>
+        <Button variant="ghost" className="w-full justify-start rounded-xl mt-2 text-gray-600" onClick={handleLogout}>
+          <LogOut className="w-5 h-5 mr-3" />
+          Log out
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Header from './Header';
+import { createBloodRequest, searchBloodDonors, type BloodDonor } from '../api';
 import Footer from './Footer';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -45,45 +46,40 @@ export default function BloodRequest() {
     { value: 'normal', label: 'Normal (Within 1 week)', color: '#1BC47D' },
   ];
 
-  const donors = [
-    {
-      id: 1,
-      name: 'John Smith',
-      bloodGroup: 'O+',
-      location: '1.2 km away',
-      lastDonation: '4 months ago',
-      compatible: true,
-      donations: 12,
-      phone: '+1 (555) 123-4567',
-    },
-    {
-      id: 2,
-      name: 'Emily Davis',
-      bloodGroup: 'O+',
-      location: '2.5 km away',
-      lastDonation: '3 months ago',
-      compatible: true,
-      donations: 8,
-      phone: '+1 (555) 234-5678',
-    },
-    {
-      id: 3,
-      name: 'Michael Brown',
-      bloodGroup: 'A+',
-      location: '3.1 km away',
-      lastDonation: '5 months ago',
-      compatible: false,
-      donations: 15,
-      phone: '+1 (555) 345-6789',
-    },
-  ];
+  const [donors, setDonors] = useState<Array<BloodDonor & { compatible?: boolean }>>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!bloodGroup || !units || !location || !urgency) {
       alert('Please fill in all required fields');
       return;
     }
-    setShowResults(true);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await createBloodRequest({
+        blood_group: bloodGroup,
+        units,
+        location,
+        urgency,
+      });
+      const list = await searchBloodDonors({ blood_group: bloodGroup, location });
+      setDonors(
+        list.map((d) => ({
+          ...d,
+          bloodGroup: d.blood_group ?? (d as { bloodGroup?: string }).bloodGroup ?? '',
+          compatible: (d.blood_group ?? '').replace(/[+-]/g, '') === bloodGroup.replace(/[+-]/g, ''),
+          lastDonation: (d as { lastDonation?: string }).lastDonation ?? '—',
+          donations: (d as { donations?: number }).donations ?? 0,
+        }))
+      );
+      setShowResults(true);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : 'Request failed');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getCurrentLocation = () => {
@@ -199,14 +195,18 @@ export default function BloodRequest() {
                   </Select>
                 </div>
 
+                {submitError && (
+                  <p className="text-sm text-red-600">{submitError}</p>
+                )}
                 <Button
                   onClick={handleSubmit}
+                  disabled={submitting}
                   className="w-full rounded-xl"
                   size="lg"
                   style={{ backgroundColor: '#FF8C42' }}
                 >
                   <Droplet className="w-5 h-5 mr-2" />
-                  Find Donors
+                  {submitting ? 'Searching…' : 'Find Donors'}
                 </Button>
               </div>
             </Card>
@@ -221,9 +221,9 @@ export default function BloodRequest() {
                   </Badge>
                 </div>
 
-                {donors.map((donor) => (
+                {donors.map((donor, idx) => (
                   <Card
-                    key={donor.id}
+                    key={donor.id ?? `donor-${idx}`}
                     className={`p-6 rounded-2xl border-2 ${
                       donor.compatible
                         ? 'border-[#1BC47D] bg-green-50'

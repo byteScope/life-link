@@ -41,6 +41,8 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/" className="hover:text-[#1BC47D] transition-colors">Home</Link></li>
               <li><Link to="/services" className="hover:text-[#1BC47D] transition-colors">Services</Link></li>
+              <li><Link to="/doctors" className="hover:text-[#1BC47D] transition-colors">Doctor Appointments</Link></li>
+              <li><Link to="/symptom-check" className="hover:text-[#1BC47D] transition-colors">Symptom Check</Link></li>
               <li><Link to="/emergency" className="hover:text-[#1BC47D] transition-colors">Emergency</Link></li>
               <li><Link to="/blood-request" className="hover:text-[#1BC47D] transition-colors">Blood Request</Link></li>
               <li><Link to="/profile" className="hover:text-[#1BC47D] transition-colors">My Account</Link></li>
@@ -52,7 +54,7 @@ export default function Footer() {
             <h3 className="text-white mb-4">Services</h3>
             <ul className="space-y-2 text-sm">
               <li><a href="#" className="hover:text-[#1BC47D] transition-colors">Ambulance Service</a></li>
-              <li><a href="#" className="hover:text-[#1BC47D] transition-colors">Doctor Consultation</a></li>
+              <li><Link to="/doctors" className="hover:text-[#1BC47D] transition-colors">Doctor Consultation</Link></li>
               <li><a href="#" className="hover:text-[#1BC47D] transition-colors">Home Nursing</a></li>
               <li><a href="#" className="hover:text-[#1BC47D] transition-colors">Lab Tests</a></li>
               <li><a href="#" className="hover:text-[#1BC47D] transition-colors">Medical Equipment</a></li>

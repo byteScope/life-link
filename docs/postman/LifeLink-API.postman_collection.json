@@ -1,0 +1,708 @@
+{
+	"info": {
+		"_postman_id": "lifelink-api-collection",
+		"name": "LifeLink API",
+		"description": "LifeLink backend: life-link (8080), chat (8081), call (8082). Canonical backend collection: dummy/backend-go/life-link/postman/LifeLink-API.postman_collection.json\n\n**Auth:** All /api routes require JWT except /api/auth/*. Run **Request OTP** then **Verify OTP** first; the test script saves the JWT to {{token}}. Use **Authorization: Bearer {{token}}** on every other life-link /api request.\n\n**Booking flow:** 1) Request OTP → Verify OTP. 2) Complete profile via **PUT /api/me/profile** (name, gender, date_of_birth, address). 3) Optionally **POST /api/patients/self/ensure** to ensure self patient. 4) GET /api/patients/me or ?self=1, GET /api/doctors, then POST /api/appointments.\n\nLegacy: /api/bookings; use cases: chat, emergency, blood.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_lifelink", "value": "http://localhost:8080" },
+		{ "key": "base_chat", "value": "http://localhost:8081" },
+		{ "key": "base_call", "value": "http://localhost:8082" },
+		{ "key": "token", "value": "" },
+		{ "key": "patient_id", "value": "1" },
+		{ "key": "doctor_id", "value": "1" },
+		{ "key": "appointment_id", "value": "" },
+		{ "key": "chat_session_id", "value": "" },
+		{ "key": "booking_id", "value": "" },
+		{ "key": "emergency_id", "value": "" },
+		{ "key": "blood_request_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "Auth (OTP Login)",
+			"item": [
+				{
+					"name": "Request OTP",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+8801712345678\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/auth/otp/request",
+						"description": "Send OTP to phone. Creates user with phone only if not exists. Use BD format +880..."
+					}
+				},
+				{
+					"name": "Verify OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  const json = pm.response.json();",
+									"  if (json.data && json.data.token) {",
+									"    pm.collectionVariables.set('token', json.data.token);",
+									"  }",
+									"  if (json.data && json.data.self_patient && json.data.self_patient.id != null) {",
+									"    pm.collectionVariables.set('patient_id', String(json.data.self_patient.id));",
+									"  }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phone\": \"+8801712345678\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/auth/otp/verify",
+						"description": "Verify OTP. Response data includes token, user, and self_patient (the user's single patient with is_self: true, or null if not created yet). Token is stored in {{token}}. If self_patient is null, client should prompt \"Complete your profile\" and POST /api/patients with is_self: true."
+					}
+				}
+			]
+		},
+		{
+			"name": "Me (User Profile)",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/me/profile",
+						"description": "Fetch current user from users table. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Update My Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"gender\": \"male\",\n  \"date_of_birth\": \"1990-05-15\",\n  \"address\": \"123 Main St, City\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/me/profile",
+						"description": "Update current user profile (Complete your profile). Auth: Bearer token required. Body: name, gender, date_of_birth, address."
+					}
+				}
+			]
+		},
+		{
+			"name": "Patients",
+			"item": [
+				{
+					"name": "Ensure Self Patient (auth)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/patients/self/ensure",
+						"description": "Ensure the logged-in user has a self patient (creates from profile if missing). Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Get My Patients (auth)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/patients/me",
+						"description": "Returns patients linked to current user (user_id from JWT). Use before booking: if empty, create patient (self or other)."
+					}
+				},
+				{
+					"name": "Get My Primary Patient (auth)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/patients/me?self=1",
+						"description": "Return only the self patient (the one with is_self: true). Query ?self=1 or ?primary=1. Use for \"book for me\" flow."
+					}
+				},
+				{
+					"name": "Create Patient (auth)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"gender\": \"male\",\n  \"phone_number\": \"+8801712345678\",\n  \"email_address\": \"john@example.com\",\n  \"address\": \"123 Main St, Dhaka\",\n  \"date_of_birth\": \"1990-05-15\",\n  \"country_id\": 1,\n  \"is_self\": true\n}"
+						},
+						"url": "{{base_lifelink}}/api/patients",
+						"description": "Create patient. Auth required: user_id from JWT. Required: name, gender. Optional: phone_number, email_address, address (single), date_of_birth, country_id, is_self (true = self, false = family/other)."
+					}
+				},
+				{
+					"name": "List Patients",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/patients?name=",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "patients"],
+							"query": [{ "key": "name", "value": "" }]
+						},
+						"description": "List patients (filter by name). Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Get Patient by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/patients/{{patient_id}}",
+						"description": "Get single patient. Set patient_id from create or from Get My Patients. Auth: Bearer token required."
+					}
+				}
+			]
+		},
+		{
+			"name": "Appointments",
+			"item": [
+				{
+					"name": "Create Appointment (Doctor) (auth)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"patient_id\": 1,\n  \"doctor_id\": 1,\n  \"appointment_datetime\": \"2025-04-01T10:00:00Z\",\n  \"reason\": \"General checkup\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/appointments",
+						"description": "Create doctor appointment. Auth required. Exactly one of doctor_id or provider_id. appointment_datetime: RFC3339 (e.g. ISO string)."
+					}
+				},
+				{
+					"name": "Create Appointment (Provider) (auth)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"patient_id\": 1,\n  \"provider_id\": 1,\n  \"appointment_datetime\": \"2025-04-01T14:00:00Z\",\n  \"reason\": \"Physiotherapy session\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/appointments",
+						"description": "Create provider appointment. Auth required."
+					}
+				},
+				{
+					"name": "List Appointments",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/appointments",
+						"description": "List appointments. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Get Appointment by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/appointments/{{appointment_id}}",
+						"description": "Get single appointment. Set appointment_id from create response. Auth: Bearer token required."
+					}
+				}
+			]
+		},
+		{
+			"name": "LifeLink (main)",
+			"item": [
+				{
+					"name": "Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_lifelink}}/health",
+						"description": "Health check for life-link service."
+					}
+				},
+				{
+					"name": "Doctors - List (all)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/doctors",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "doctors"]
+						},
+						"description": "List all doctors. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Doctors - List (by specialty & area)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/doctors?specialty=General practice&area=Downtown",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "doctors"],
+							"query": [
+								{ "key": "specialty", "value": "General practice" },
+								{ "key": "area", "value": "Downtown" }
+							]
+						},
+						"description": "List doctors filtered by specialty and area. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Doctors - Slots",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/doctors/:id/slots",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "doctors", ":id", "slots"],
+							"variable": [{ "key": "id", "value": "d1" }]
+						},
+						"description": "Get available slots for a doctor. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Booking - Create (doctor)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"doctor_id\": \"d1\",\n  \"slot\": \"2025-03-15 10:00\",\n  \"patient\": \"John Doe\",\n  \"phone\": \"+1234567890\",\n  \"care_type\": \"\",\n  \"duration\": \"30\",\n  \"location\": \"\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/bookings",
+						"description": "Legacy: create booking with doctor. Prefer POST /api/appointments with patient_id. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Booking - Create (provider)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"provider_id\": \"p1\",\n  \"slot\": \"2025-03-15 14:00\",\n  \"patient\": \"Jane Doe\",\n  \"phone\": \"+0987654321\",\n  \"care_type\": \"home-visit\",\n  \"duration\": \"60\",\n  \"location\": \"Downtown\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/bookings",
+						"description": "Legacy: create booking with provider. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Booking - List",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/bookings",
+						"description": "List all bookings. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Booking - Get by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/bookings/{{booking_id}}",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "bookings", "{{booking_id}}"]
+						},
+						"description": "Get a single booking. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Services - List (all)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/services",
+						"description": "List all providers. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Services - List (by category & area)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/services?category=physiotherapy&area=Downtown",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "services"],
+							"query": [
+								{ "key": "category", "value": "physiotherapy" },
+								{ "key": "care_type", "value": "home-visit" },
+								{ "key": "area", "value": "Downtown" }
+							]
+						},
+						"description": "List providers by category, care_type, area. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Services - Get by ID",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/services/:id",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "services", ":id"],
+							"variable": [{ "key": "id", "value": "p1" }]
+						},
+						"description": "Get one provider. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Services - Slots",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/services/:id/slots",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "services", ":id", "slots"],
+							"variable": [{ "key": "id", "value": "p1" }]
+						},
+						"description": "Get available slots for a provider. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Emergency - Create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"service_type\": \"ambulance\",\n  \"location\": \"123 Main St\",\n  \"details\": \"Patient needs urgent transport\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/emergency",
+						"description": "Create emergency request. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Emergency - Get status",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/emergency/{{emergency_id}}",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "emergency", "{{emergency_id}}"]
+						},
+						"description": "Get emergency request status. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Blood - Create request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"blood_group\": \"O+\",\n  \"units\": \"2\",\n  \"location\": \"City Hospital\",\n  \"urgency\": \"critical\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/blood-requests",
+						"description": "Create blood request. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Blood - Get request",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/blood-requests/{{blood_request_id}}",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "blood-requests", "{{blood_request_id}}"]
+						},
+						"description": "Get blood request by id. Auth: Bearer token required."
+					}
+				},
+				{
+					"name": "Blood - Search donors",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": {
+							"raw": "{{base_lifelink}}/api/blood-requests/donors/search?blood_group=O+",
+							"host": ["{{base_lifelink}}"],
+							"path": ["api", "blood-requests", "donors", "search"],
+							"query": [
+								{ "key": "blood_group", "value": "O+" },
+								{ "key": "location", "value": "" }
+							]
+						},
+						"description": "Search donors by blood_group (and optionally location). Auth: Bearer token required."
+					}
+				}
+			]
+		},
+		{
+			"name": "Chat",
+			"item": [
+				{
+					"name": "Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_chat}}/health",
+						"description": "Health check for chat service."
+					}
+				},
+				{
+					"name": "Chat - Create session",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{base_chat}}/api/chat/sessions",
+						"description": "Create a new chat session. Save response id as chat_session_id for later requests."
+					}
+				},
+				{
+					"name": "Chat - Get session",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_chat}}/api/chat/sessions/{{chat_session_id}}",
+							"host": ["{{base_chat}}"],
+							"path": ["api", "chat", "sessions", "{{chat_session_id}}"]
+						},
+						"description": "Get session with all messages and summary. Set chat_session_id from create."
+					}
+				},
+				{
+					"name": "Chat - Send message (symptom)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"I have headache and fever since 2 days\"\n}"
+						},
+						"url": {
+							"raw": "{{base_chat}}/api/chat/sessions/{{chat_session_id}}/messages",
+							"host": ["{{base_chat}}"],
+							"path": ["api", "chat", "sessions", "{{chat_session_id}}", "messages"]
+						},
+						"description": "Send user message; returns bot reply and summary/triage. Use session id from create."
+					}
+				}
+			]
+		},
+		{
+			"name": "Call (A/V)",
+			"item": [
+				{
+					"name": "Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{base_call}}/health",
+						"description": "Health check for call service."
+					}
+				},
+				{
+					"name": "Call - Get token",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"booking_id\": \"{{booking_id}}\"\n}"
+						},
+						"url": "{{base_call}}/api/call/token",
+						"description": "Get A/V token and room_id for a booking. Set booking_id from life-link booking create response."
+					}
+				}
+			]
+		},
+		{
+			"name": "Use case - Symptom to booking",
+			"item": [
+				{
+					"name": "1. Create chat session",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{base_chat}}/api/chat/sessions"
+					}
+				},
+				{
+					"name": "2. Send symptom",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"Headache and mild fever for 2 days\"\n}"
+						},
+						"url": "{{base_chat}}/api/chat/sessions/{{chat_session_id}}/messages"
+					}
+				},
+				{
+					"name": "3. List doctors",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/doctors"
+					}
+				},
+				{
+					"name": "4. Get doctor slots",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/doctors/d1/slots"
+					}
+				},
+				{
+					"name": "5. Create booking",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"doctor_id\": \"d1\",\n  \"slot\": \"2025-03-15 10:00\",\n  \"patient\": \"John\",\n  \"phone\": \"+1234567890\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/bookings"
+					}
+				},
+				{
+					"name": "6. Get A/V token",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"booking_id\": \"{{booking_id}}\"\n}"
+						},
+						"url": "{{base_call}}/api/call/token"
+					}
+				}
+			]
+		},
+		{
+			"name": "Use case - Direct provider booking",
+			"item": [
+				{
+					"name": "1. List services (physiotherapy)",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/services?category=physiotherapy"
+					}
+				},
+				{
+					"name": "2. Get provider slots",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/services/p1/slots"
+					}
+				},
+				{
+					"name": "3. Create booking (provider)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"provider_id\": \"p1\",\n  \"slot\": \"2025-03-15 10:00\",\n  \"patient\": \"Jane\",\n  \"phone\": \"+0987654321\",\n  \"care_type\": \"home-visit\",\n  \"duration\": \"60\",\n  \"location\": \"Downtown\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/bookings"
+					}
+				}
+			]
+		},
+		{
+			"name": "Use case - Emergency",
+			"item": [
+				{
+					"name": "1. Create emergency request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"service_type\": \"ambulance\",\n  \"location\": \"456 Emergency Ave\",\n  \"details\": \"Chest pain\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/emergency"
+					}
+				},
+				{
+					"name": "2. Get emergency status",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/emergency/{{emergency_id}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Use case - Blood request",
+			"item": [
+				{
+					"name": "1. Create blood request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"blood_group\": \"O+\",\n  \"units\": \"2\",\n  \"location\": \"City Hospital\",\n  \"urgency\": \"urgent\"\n}"
+						},
+						"url": "{{base_lifelink}}/api/blood-requests"
+					}
+				},
+				{
+					"name": "2. Search donors",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+						"url": "{{base_lifelink}}/api/blood-requests/donors/search?blood_group=O+"
+					}
+				}
+			]
+		}
+	]
+}

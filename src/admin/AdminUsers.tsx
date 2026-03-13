@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import AdminSidebar from './AdminSidebar';
-import { Button } from '../ui/button';
-import { Card } from '../ui/card';
-import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
 import {
   Table,
   TableBody,
@@ -11,8 +11,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/table';
-import { Search, Filter, MoreVertical, UserCheck, UserX } from 'lucide-react';
+} from '../components/ui/table';
+import { Search, Filter, MoreVertical } from 'lucide-react';
 
 export default function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('');

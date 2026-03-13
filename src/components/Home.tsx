@@ -28,6 +28,7 @@ import {
   UserCheck,
   CheckCircle,
   ArrowRight,
+  Calendar,
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
@@ -56,11 +57,11 @@ export default function Home() {
   };
   const quickAccessTiles = [
     {
-      title: 'Emergency',
-      description: 'Ambulance, Fire, Medical Help',
-      icon: Ambulance,
-      color: '#FF3E30',
-      path: '/emergency',
+      title: 'Book a Doctor',
+      description: 'In-person or video consultation',
+      icon: Calendar,
+      color: '#1BC47D',
+      path: '/doctors',
     },
     {
       title: 'Blood Request',
@@ -70,11 +71,11 @@ export default function Home() {
       path: '/blood-request',
     },
     {
-      title: 'Chat',
-      description: 'Talk to providers',
+      title: 'Symptom Check',
+      description: 'Chat and we’ll suggest the right doctors',
       icon: MessageCircle,
       color: '#9B4DFF',
-      path: '/chat',
+      path: '/symptom-check',
     },
   ];
 

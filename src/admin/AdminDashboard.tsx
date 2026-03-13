@@ -1,15 +1,12 @@
 import AdminSidebar from './AdminSidebar';
-import { Card } from '../ui/card';
-import { Badge } from '../ui/badge';
+import { Card } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
 import {
   Users,
-  Activity,
   DollarSign,
-  TrendingUp,
   Ambulance,
   Droplet,
   Calendar,
-  AlertCircle,
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -143,7 +140,7 @@ export default function AdminDashboard() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <AdminSidebar />
-      
+
       <div className="flex-1 overflow-auto">
         <div className="p-8">
           {/* Header */}

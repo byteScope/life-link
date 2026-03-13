@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './Header';
+import { createEmergency, getEmergency } from '../api';
 import Footer from './Footer';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -25,12 +26,23 @@ import {
   Navigation,
 } from 'lucide-react';
 
+function mapApiStatusToUi(status: string | undefined): 'pending' | 'accepted' | 'arriving' | 'arrived' {
+  const s = (status ?? '').toLowerCase();
+  if (s === 'arrived' || s === 'completed') return 'arrived';
+  if (s === 'arriving' || s === 'on_the_way' || s === 'en_route') return 'arriving';
+  if (s === 'accepted' || s === 'dispatched') return 'accepted';
+  return 'pending';
+}
+
 export default function Emergency() {
   const [selectedService, setSelectedService] = useState('');
   const [location, setLocation] = useState('');
   const [details, setDetails] = useState('');
   const [showTracker, setShowTracker] = useState(false);
   const [requestStatus, setRequestStatus] = useState<'pending' | 'accepted' | 'arriving' | 'arrived'>('pending');
+  const [emergencyId, setEmergencyId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const emergencyServices = [
     {
@@ -67,17 +79,37 @@ export default function Emergency() {
     },
   ];
 
-  const handleEmergencyRequest = () => {
+  useEffect(() => {
+    if (!emergencyId) return;
+    const t = setInterval(() => {
+      getEmergency(emergencyId)
+        .then((e) => setRequestStatus(mapApiStatusToUi(e.status as string)))
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(t);
+  }, [emergencyId]);
+
+  const handleEmergencyRequest = async () => {
     if (!selectedService || !location) {
       alert('Please select a service and enter your location');
       return;
     }
-    setShowTracker(true);
-    
-    // Simulate status updates
-    setTimeout(() => setRequestStatus('accepted'), 2000);
-    setTimeout(() => setRequestStatus('arriving'), 5000);
-    setTimeout(() => setRequestStatus('arrived'), 10000);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await createEmergency({
+        service_type: selectedService,
+        location,
+        details: details || undefined,
+      });
+      setEmergencyId((res as { id: string }).id);
+      setShowTracker(true);
+      setRequestStatus('pending');
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : 'Request failed');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getCurrentLocation = () => {
@@ -208,15 +240,18 @@ export default function Emergency() {
               />
             </div>
 
+            {submitError && (
+              <p className="text-sm text-red-600">{submitError}</p>
+            )}
             <Button
               onClick={handleEmergencyRequest}
-              disabled={!selectedService || !location}
+              disabled={!selectedService || !location || submitting}
               className="w-full rounded-xl"
               size="lg"
               style={{ backgroundColor: '#FF3E30' }}
             >
               <Ambulance className="w-5 h-5 mr-2" />
-              Request Emergency Service
+              {submitting ? 'Submitting…' : 'Request Emergency Service'}
             </Button>
           </div>
         </Card>

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminSidebar from './AdminSidebar';
-import { Button } from '../ui/button';
-import { Card } from '../ui/card';
-import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
+import { listBookings } from '../api';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
 import {
   Table,
   TableBody,
@@ -11,58 +12,49 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/table';
+} from '../components/ui/table';
 import { Search, Filter, Calendar, CheckCircle, Clock, XCircle } from 'lucide-react';
+
+type BookingRow = {
+  id: string;
+  bookingId: string;
+  service: string;
+  user: string;
+  provider: string;
+  date: string;
+  time: string;
+  status: string;
+  amount: number;
+};
 
 export default function AdminBookings() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const bookings = [
-    {
-      id: 1,
-      bookingId: 'BK-001',
-      service: 'Doctor Consultation',
-      user: 'John Smith',
-      provider: 'Dr. Sarah Johnson',
-      date: 'Nov 22, 2025',
-      time: '10:00 AM',
-      status: 'Confirmed',
-      amount: 50,
-    },
-    {
-      id: 2,
-      bookingId: 'BK-002',
-      service: 'Lab Test',
-      user: 'Emily Davis',
-      provider: 'MediLab Center',
-      date: 'Nov 23, 2025',
-      time: '2:30 PM',
-      status: 'Pending',
-      amount: 35,
-    },
-    {
-      id: 3,
-      bookingId: 'BK-003',
-      service: 'Home Nursing',
-      user: 'Michael Brown',
-      provider: 'CareNurse Services',
-      date: 'Nov 21, 2025',
-      time: '9:00 AM',
-      status: 'Completed',
-      amount: 80,
-    },
-    {
-      id: 4,
-      bookingId: 'BK-004',
-      service: 'Physiotherapy',
-      user: 'Sarah Miller',
-      provider: 'PhysioFit Center',
-      date: 'Nov 20, 2025',
-      time: '3:00 PM',
-      status: 'Cancelled',
-      amount: 60,
-    },
-  ];
+  useEffect(() => {
+    listBookings()
+      .then((list) => {
+        const mapped: BookingRow[] = (list || []).map((b: { id?: string; doctor_id?: string; patient?: string; slot?: string; status?: string; [k: string]: unknown }) => {
+          const slot = (b.slot ?? '').toString();
+          const [datePart, timePart] = slot.split(' ');
+          return {
+            id: (b.id ?? '').toString(),
+            bookingId: (b.id ?? '').toString(),
+            service: b.doctor_id ? 'Doctor Consultation' : 'Service',
+            user: (b.patient ?? '—').toString(),
+            provider: (b as { provider?: string }).provider ?? 'Doctor',
+            date: datePart ?? '—',
+            time: timePart ?? '—',
+            status: (b.status ?? 'Pending').toString(),
+            amount: typeof (b as { amount?: number }).amount === 'number' ? (b as { amount: number }).amount : 0,
+          };
+        });
+        setBookings(mapped);
+      })
+      .catch(() => setBookings([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredBookings = bookings.filter(
     (booking) =>
@@ -164,6 +156,7 @@ export default function AdminBookings() {
             </div>
           </Card>
 
+          {loading && <p className="text-sm text-gray-500 mb-4">Loading bookings…</p>}
           {/* Bookings Table */}
           <Card className="border-0 rounded-2xl overflow-hidden">
             <Table>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
 import { Button } from './ui/button';
@@ -19,8 +19,20 @@ import {
 
 export default function Payments() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedMethod, setSelectedMethod] = useState('card');
   const [paymentComplete, setPaymentComplete] = useState(false);
+
+  const state = location.state as { service?: string; provider?: string; date?: string; time?: string; total?: number } | null;
+  const bookingDetails = {
+    service: state?.service ?? 'General Physician Consultation',
+    provider: state?.provider ?? 'Dr. Sarah Johnson',
+    date: state?.date ?? 'Nov 22, 2025',
+    time: state?.time ?? '10:00 AM',
+    subtotal: state?.total ? Math.round(state.total / 1.1) : 50,
+    tax: state?.total ? Math.round(state.total - state.total / 1.1) : 5,
+    total: state?.total ?? 55,
+  };
 
   const paymentMethods = [
     {
@@ -42,16 +54,6 @@ export default function Payments() {
       color: '#9B4DFF',
     },
   ];
-
-  const bookingDetails = {
-    service: 'General Physician Consultation',
-    provider: 'Dr. Sarah Johnson',
-    date: 'Nov 22, 2025',
-    time: '10:00 AM',
-    subtotal: 50,
-    tax: 5,
-    total: 55,
-  };
 
   const handlePayment = () => {
     // Simulate payment processing

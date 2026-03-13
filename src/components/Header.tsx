@@ -9,6 +9,7 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
+    { path: '/doctors', label: 'Doctors' },
     { path: '/emergency', label: 'Emergency' },
     { path: '/blood-request', label: 'Blood Request' },
     { path: '/chat', label: 'Chat' },
